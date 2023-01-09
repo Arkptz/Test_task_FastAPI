@@ -1,0 +1,2 @@
+secret='ca45c6d3e7a6787b0b5275a942643f504924e6b13cd1a293'
+algorithm='HS256'
