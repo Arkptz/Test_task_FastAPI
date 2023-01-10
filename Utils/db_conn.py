@@ -1,7 +1,7 @@
 import sqlite3 as sl
 from typing import Union
 from dataclasses import dataclass
-from app.model import PostSchema, UserSchema, UserLoginSchema, RemovePostSchema, PagePostSchema
+from app.model import PostSchema, UserSchema, UserLoginSchema, RemovePostSchema, PagePostSchema, PostEditSchema
 from app.auth.auth_handler import signJWT
 from config import db_path
 from .classes import User, Post
@@ -98,12 +98,17 @@ class PostsDatabaseConnector(Base):
             'SELECT * FROM Post WHERE id=2').fetchall()[num:num+page.page_size]
         return [Post(*i).__dict__ for i in data]
 
-    def get_post(self, post: RemovePostSchema) -> Post:
+    def get_post(self, id: int) -> Post:
         data = self.cursor.execute(
-            'SELECT * FROM Post WHERE id=?', [post.id]).fetchall()
+            'SELECT * FROM Post WHERE id=?', [id]).fetchall()
         if len(data) == 0:
             return None
         return Post(*data[0])
+
+
+    def update_post(self, edit:PostEditSchema, id:int):
+        self.cursor.execute('UPDATE Post SET title=?, content=? WHERE id=?', [edit.title, edit.content, id])
+        self.db.commit()
 
     def delete_post(self, post: Post) -> None:
         self.cursor.execute('DELETE FROM Post WHERE id=?', [post.id])

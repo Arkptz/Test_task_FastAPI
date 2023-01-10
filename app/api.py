@@ -1,6 +1,6 @@
 from app.model import PostSchema
 from fastapi import FastAPI, Body, Depends, HTTPException, Request
-from app.model import PostSchema, UserSchema, UserLoginSchema, RemovePostSchema, PagePostSchema
+from app.model import PostSchema, UserSchema, UserLoginSchema, RemovePostSchema, PagePostSchema, PostEditSchema
 from app.auth.auth_bearer import JWTBearer
 from app.auth.auth_handler import token_response
 from Utils.db_conn import db_users, db_posts
@@ -48,16 +48,30 @@ async def add_post(post: PostSchema, r :Request) -> dict:
     }
 
 
-@app.delete("/posts", dependencies=[Depends(JWTBearer())], tags=["posts"])
-async def del_post(post: RemovePostSchema, r :Request) -> dict:
+@app.delete("/posts/{id}", dependencies=[Depends(JWTBearer())], tags=["posts"])
+async def del_post(id: int, r :Request) -> dict:
     token = r.headers.get('authorization')
     user = db_users.get_user_from_token(token)
-    _post = db_posts.get_post(post)
+    _post = db_posts.get_post(id)
     if not _post:
         raise HTTPException(status_code=403, detail='There is no such publication.')
     if user.uuid == _post.user_uuid:
         db_posts.delete_post(_post)
         return {
             "data": "post deleted."
+        }
+    raise HTTPException(status_code=403, detail='You have no rights to delete this post!')
+
+@app.patch("/posts/{id}", dependencies=[Depends(JWTBearer())], tags=["posts"])
+async def edit_post(id: int, r :Request, post:PostEditSchema) -> dict:
+    token = r.headers.get('authorization')
+    user = db_users.get_user_from_token(token)
+    _post = db_posts.get_post(id)
+    if not _post:
+        raise HTTPException(status_code=403, detail='There is no such publication.')
+    if user.uuid == _post.user_uuid:
+        db_posts.update_post(post, id)
+        return {
+            "data": "post edited."
         }
     raise HTTPException(status_code=403, detail='You have no rights to delete this post!')
