@@ -17,11 +17,11 @@ def token_response(token: str):
 def signJWT(user_id: str) -> dict[str, str]:
     payload = {
         "user_id": user_id,
-        "expires": time.time() + 600
+        "expires": time.time() + 6000
     }
     token = jwt.encode(payload, JWT_SECRET, algorithm=JWT_ALGORITHM)
 
-    return token_response(token)
+    return token
 
 def decodeJWT(token: str) -> dict:
     try:

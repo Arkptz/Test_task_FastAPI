@@ -15,6 +15,29 @@ class PostSchema(BaseModel):
         }
 
 
+class PagePostSchema(BaseModel):
+    num_page: int = Field(...)
+    page_size: int = Field(...)
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "num_page": 1,
+                "page_size": 50
+            }
+        }
+
+class RemovePostSchema(BaseModel):
+    id: int = Field()
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "id": "1",
+            }
+        }
+
+
 class UserSchema(BaseModel):
     login: str = Field(...)
     email: EmailStr = Field(...)

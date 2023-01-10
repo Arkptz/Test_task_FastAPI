@@ -1,21 +1,14 @@
 from app.model import PostSchema
-from fastapi import FastAPI, Body, Depends
-from app.model import PostSchema, UserSchema, UserLoginSchema
+from fastapi import FastAPI, Body, Depends, HTTPException, Request
+from app.model import PostSchema, UserSchema, UserLoginSchema, RemovePostSchema, PagePostSchema
 from app.auth.auth_bearer import JWTBearer
-from app.auth.auth_handler import signJWT
+from app.auth.auth_handler import token_response
+from Utils.db_conn import db_users, db_posts
 
 app = FastAPI()
 
 
-posts = [
-    {
-        "id": 1,
-        "title": "Pancake",
-        "content": "Lorem Ipsum ..."
-    }
-]
 
-users = []
 
 
 @app.get("/", tags=["root"])
@@ -23,21 +16,48 @@ async def read_root() -> dict:
     return {"message": "Welcome to Engine!"}
 
 
-@app.get("/posts", tags=["posts"])
-async def get_posts() -> dict:
-    return {"data": posts}
+@app.post("/posts", tags=["posts"])
+async def get_posts(page:PagePostSchema) -> dict:
+    return {"data": db_posts.get_list_posts(page)}
+
 
 @app.post("/user/signup", tags=["user"])
 async def create_user(user: UserSchema = Body(...)):
-    print(user)
-    users.append(user) # replace with db call, making sure to hash the password first
-    return signJWT(user.login)
+    # replace with db call, making sure to hash the password first
+    if db_users.check_user(user):
+        _user = db_users.create_user(user)
+        return token_response(_user.current_token)
+    raise HTTPException(status_code=403, detail='Such a user already exists!')
 
-@app.post("/posts", dependencies=[Depends(JWTBearer())], tags=["posts"])
-async def add_post(post: PostSchema) -> dict:
-    print(post.dict())
-    post.id = len(posts) + 1
-    posts.append(post.dict())
+
+@app.post("/user/login", tags=["user"])
+async def login(user: UserLoginSchema = Body(...)):
+    # replace with db call, making sure to hash the password first
+    _user = db_users.login(user)
+    if _user:
+        return token_response(_user.current_token)
+    raise HTTPException(status_code=403, detail='There is no such user')
+
+
+@app.put("/posts", dependencies=[Depends(JWTBearer())], tags=["posts"])
+async def add_post(post: PostSchema, r :Request) -> dict:
+    token = r.headers.get('authorization')
+    _post = db_posts.create_post(post, db_users.get_user_from_token(token))
     return {
         "data": "post added."
     }
+
+
+@app.delete("/posts", dependencies=[Depends(JWTBearer())], tags=["posts"])
+async def del_post(post: RemovePostSchema, r :Request) -> dict:
+    token = r.headers.get('authorization')
+    user = db_users.get_user_from_token(token)
+    _post = db_posts.get_post(post)
+    if not _post:
+        raise HTTPException(status_code=403, detail='There is no such publication.')
+    if user.uuid == _post.user_uuid:
+        db_posts.delete_post(_post)
+        return {
+            "data": "post deleted."
+        }
+    raise HTTPException(status_code=403, detail='You have no rights to delete this post!')
