@@ -15,3 +15,11 @@ class Post:
     title:str
     content:str
     user_uuid:str
+
+
+@dataclass
+class Like:
+    id_post:int
+    user_uuid:str
+    like:bool
+    dislike:bool

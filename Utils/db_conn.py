@@ -1,10 +1,11 @@
 import sqlite3 as sl
 from typing import Union
 from dataclasses import dataclass
+from fastapi import HTTPException
 from app.model import PostSchema, UserSchema, UserLoginSchema, RemovePostSchema, PagePostSchema, PostEditSchema
 from app.auth.auth_handler import signJWT
 from config import db_path
-from .classes import User, Post
+from .classes import User, Post, Like
 from uuid import uuid4
 
 
@@ -63,9 +64,12 @@ class UsersDatabaseConnector(Base):
         return _user
 
     def get_user_from_token(self, jwt: str) -> User:
-        jwt = jwt.replace('Bearer ', '')
+        if 'Bearer' in jwt:
+            jwt = jwt.replace('Bearer ', '')
         data = self.cursor.execute(
             'SELECT * FROM User WHERE current_token=?', [jwt]).fetchone()
+        if not data:
+            return None
         return User(*data)
 
 
@@ -115,9 +119,44 @@ class PostsDatabaseConnector(Base):
         self.db.commit()
 
 
+class LikesDatabaseConnector(Base):
+    def create_table(self):
+        """Creates table if not exists."""
+        self.cursor.execute('''CREATE TABLE IF NOT EXISTS Like (
+                                id_post int,
+                                user_uuid TEXT,
+                                like BOOLEAN,
+                                dislike BOOLEAN
+                                )''')
+        self.db.commit()
+
+    def check_like(self, like:Like) -> bool:
+        data = self.cursor.execute('SELECT * FROM Like WHERE id_post=? AND user_uuid=?', [like.id_post, like.user_uuid]).fetchall()
+        if len(data) !=0:
+            return True
+        return False
+
+    def update_like(self, like:Like):
+        self.cursor.execute("UPDATE Like SET like=?, dislike=? WHERE id_post=? AND user_uuid=?", 
+                [like.like, like.dislike, like.id_post, like.user_uuid])
+        self.db.commit()
+    
+    def set_like(self,post:Post, user:User, like=False, dislike=False):
+        if post.user_uuid == user.uuid:
+            raise HTTPException(status_code=403, detail="You can't put reactions to your post")
+        _like = Like(id_post=post.id, user_uuid=user.uuid, like=like, dislike=dislike)
+        if self.check_like(_like):
+            self.update_like(_like)
+        else:
+            self.cursor.execute('INSERT INTO Like VALUES(?,?,?,?)', list(_like.__dict__.values()))
+            self.db.commit()
+
+
+
 connect = sl.connect(db_path)
 cursor = sl.Cursor(connect)
 db_users = UsersDatabaseConnector(connect, cursor)
 db_posts = PostsDatabaseConnector(connect, cursor)
-for i in [db_users, db_posts]:
+db_likes = LikesDatabaseConnector(connect, cursor)
+for i in [db_users, db_posts, db_likes]:
     i.create_table()
